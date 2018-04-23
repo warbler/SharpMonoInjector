@@ -1,29 +1,21 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
+using SharpMonoInjector.Injection;
 
 namespace SharpMonoInjector
 {
     public partial class Main : Form
     {
-        public Main()
-        {
-            InitializeComponent();
-        }
+        private Injector _injector;
+
+        public Main() {InitializeComponent();}
 
         private void Main_Load(object sender, EventArgs e)
         {
-            cbProcesses.DisplayMember = "Text";
-            lstInjected.DisplayMember = "Text";
             RefreshProcesses();
-            Injector.Instance.Error += OnError;
-            Injector.Instance.SuccessfulInjection += OnSuccessfulInjection;
-            Injector.Instance.SuccessfulEjection += OnSuccessfulEjection;
-        }
-
-        private void Main_FormClosing(object sender, FormClosingEventArgs e)
-        {
-            Injector.Instance.Dispose();
         }
 
         private void lblRefresh_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -72,50 +64,60 @@ namespace SharpMonoInjector
         private void btnInject_Click(object sender, EventArgs e)
         {
             MonoProcess target = (MonoProcess)cbProcesses.SelectedItem;
+
             if (target == null)
                 return;
 
             target.Process.Refresh();
+
             if (target.Process.HasExited)
             {
                 OnError("The target process has exited");
                 return;
             }
 
-            string assembly, name_space, klass, method;
+            if (_injector == null || _injector.ProcessHandle != target.Process.Handle)
+                _injector = new Injector(target.Process.Handle);
 
-            if (string.IsNullOrEmpty((assembly = txtAssembly.Text)))
-                return;
-            if (string.IsNullOrEmpty((name_space = txtNamespace.Text)))
-                return;
-            if (string.IsNullOrEmpty((klass = txtClass.Text)))
-                return;
-            if (string.IsNullOrEmpty((method = txtMethod.Text)))
-                return;
-
-            byte[] data = null;
-            try { data = File.ReadAllBytes(assembly); }
-            catch (Exception ex)
+            if (!Injector.ExportsLoaded)
             {
-                OnError($"Could not read the file '{assembly}': {ex.Message}");
+                if (!Injector.LoadMonoFunctions(target.Process.Modules.Cast<ProcessModule>()
+                    .First(pm => pm.ModuleName == "mono.dll").FileName))
+                {
+                    OnError("Failed to load mono.dll");
+                    return;
+                }
+            }
+
+            string assembly = txtAssembly.Text;
+
+            if (!Utils.ReadFile(assembly, out byte[] bytes))
+            {
+                OnError("Failed to read the specified assembly");
                 return;
             }
+
+            var config = new InjectionConfig
+            {
+                Assembly = bytes,
+                AssemblyPath = assembly,
+                Namespace = txtNamespace.Text,
+                Class = txtClass.Text,
+                Method = txtMethod.Text
+            };
 
             try
             {
-                Injector.Instance.Inject(new InjectionConfig
-                {
-                    Process = target.Process,
-                    Assembly = data,
-                    AssemblyPath = assembly,
-                    Namespace = name_space,
-                    Class = klass,
-                    Method = method
-                });
+                _injector.Inject(config);
+                lstInjected.Items.Add(config);
+            }
+            catch (ApplicationException ae)
+            {
+                OnError($"Injection failed: {ae.Message}");
             }
             catch (Exception ex)
             {
-                OnError($"An error occurred during injection: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                OnError($"An unknown error occurred: {ex.Message}");
             }
         }
 
@@ -125,26 +127,25 @@ namespace SharpMonoInjector
 
             if (config != null)
             {
-                string unloadMethod = txtUnload.Text;
-                Injector.Instance.UnloadAndCloseAssembly(
-                    config, unloadMethod != "Unload method name" ? unloadMethod : null);
-                lstInjected.Items.Remove(config);
+                try
+                {
+                    _injector.UnloadAndCloseAssembly(config, txtUnload.Text);
+                    lstInjected.Items.Remove(config);
+                }
+                catch (ApplicationException ae)
+                {
+                    OnError($"Ejection failed: {ae.Message}");
+                }
+                catch (Exception ex)
+                {
+                    OnError($"An unknown error occurred: {ex.Message}");
+                }
             }
         }
 
         private void OnError(string message)
         {
             MessageBox.Show($"ERROR: {message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-
-        private void OnSuccessfulInjection(InjectionConfig config)
-        {
-            lstInjected.Items.Add(config);
-        }
-
-        private void OnSuccessfulEjection(InjectionConfig config)
-        {
-            lstInjected.Items.Remove(config);
         }
 
         private void RefreshProcesses()

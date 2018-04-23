@@ -2,16 +2,14 @@
 using System.Diagnostics;
 using System.ComponentModel;
 using System.Collections.Generic;
-using NETProcess = System.Diagnostics.Process;
 
 namespace SharpMonoInjector
 {
     public class MonoProcess
     {
-        public string Text { get { return $"{Process.Id} - {Process.ProcessName}"; } }
-        public NETProcess Process;
+        public Process Process { get; }
 
-        public MonoProcess(NETProcess process)
+        public MonoProcess(Process process)
         {
             Process = process;
         }
@@ -20,7 +18,7 @@ namespace SharpMonoInjector
         {
             List<MonoProcess> procs = new List<MonoProcess>();
 
-            foreach (NETProcess p in NETProcess.GetProcesses())
+            foreach (Process p in Process.GetProcesses())
             {
                 try
                 {
@@ -28,9 +26,18 @@ namespace SharpMonoInjector
                         if (pm.ModuleName.Equals("mono.dll", StringComparison.OrdinalIgnoreCase))
                             procs.Add(new MonoProcess(p));
                 }
-                catch (Win32Exception) { continue; }
+                catch (Win32Exception)
+                {
+                    // ignore
+                }
             }
+
             return procs.ToArray();
+        }
+
+        public override string ToString()
+        {
+            return $"{Process.Id} - {Process.ProcessName}";
         }
     }
 }
