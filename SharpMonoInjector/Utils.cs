@@ -1,5 +1,8 @@
 ﻿using System;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
+using SharpMonoInjector.Injection;
 
 namespace SharpMonoInjector
 {
@@ -23,6 +26,17 @@ namespace SharpMonoInjector
         {
             if (ptr == IntPtr.Zero)
                 throw new ApplicationException($"{name} = 0");
+        }
+
+        public static bool Is64Bit(this Process p)
+        {
+            if (!Environment.Is64BitOperatingSystem)
+                return false;
+
+            if (!Native.IsWow64Process(p.Handle, out bool isWow64))
+                throw new Win32Exception();
+
+            return !isWow64;
         }
     }
 }

@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Windows.Forms;
 using SharpMonoInjector.Injection;
 
@@ -79,16 +77,6 @@ namespace SharpMonoInjector
             if (_injector == null || _injector.ProcessHandle != target.Process.Handle)
                 _injector = new Injector(target.Process.Handle);
 
-            if (!Injector.ExportsLoaded)
-            {
-                if (!Injector.LoadMonoFunctions(target.Process.Modules.Cast<ProcessModule>()
-                    .First(pm => pm.ModuleName == "mono.dll").FileName))
-                {
-                    OnError("Failed to load mono.dll");
-                    return;
-                }
-            }
-
             string assembly = txtAssembly.Text;
 
             if (!Utils.ReadFile(assembly, out byte[] bytes))
@@ -99,6 +87,7 @@ namespace SharpMonoInjector
 
             var config = new InjectionConfig
             {
+                Target = target,
                 Assembly = bytes,
                 AssemblyPath = assembly,
                 Namespace = txtNamespace.Text,
@@ -117,7 +106,7 @@ namespace SharpMonoInjector
             }
             catch (Exception ex)
             {
-                OnError($"An unknown error occurred: {ex.Message}");
+                OnError($"An unknown error occurred: {ex.Message} {ex.StackTrace}");
             }
         }
 

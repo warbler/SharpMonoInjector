@@ -15,7 +15,9 @@ namespace SharpMonoInjector.Injection
 
         private bool _attach;
 
-        private static readonly Dictionary<string, IntPtr> Exports = new Dictionary<string, IntPtr>
+        private InjectionConfig _config;
+
+        private readonly Dictionary<string, IntPtr> Exports = new Dictionary<string, IntPtr>
         {
             {"mono_get_root_domain", IntPtr.Zero},
             {"mono_thread_attach", IntPtr.Zero},
@@ -28,35 +30,50 @@ namespace SharpMonoInjector.Injection
             {"mono_assembly_close", IntPtr.Zero}
         };
 
-        public static bool ExportsLoaded { get; private set; }
-
         public Injector(IntPtr processHandle)
         {
             ProcessHandle = processHandle;
         }
 
-        public static bool LoadMonoFunctions(string monoDllPath)
+        private bool GetExports(IntPtr mod, bool x64)
         {
-            IntPtr handle = UnsafeNativeMethods.LoadLibrary(monoDllPath);
+            IntPtr exports = mod + _memory.ReadInt(mod + _memory.ReadInt(mod + 0x3C) + (x64 ? 0x88 : 0x78));
 
-            if (handle == IntPtr.Zero)
-                return false;
+            int count = _memory.ReadInt(exports + 0x18);
 
-            foreach (string func in Exports.Keys.ToArray())
-                Exports[func] = UnsafeNativeMethods.GetProcAddress(handle, func);
+            IntPtr names = mod + _memory.ReadInt(exports + 0x20);
 
-            UnsafeNativeMethods.FreeLibrary(handle);
+            IntPtr ordinals = mod + _memory.ReadInt(exports + 0x24);
 
-            return ExportsLoaded = Exports.Values.All(v => v != IntPtr.Zero);
+            IntPtr relatives = mod + _memory.ReadInt(exports + 0x1C);
+
+            for (int i = 0; i < count; i++)
+            {
+                string name =
+                    _memory.ReadString(mod + _memory.ReadInt(names + i * 4), 32, Encoding.ASCII);
+
+                if (!Exports.ContainsKey(name))
+                    continue;
+
+                short ordinal = _memory.ReadShort(ordinals + i * 2);
+
+                IntPtr address = mod + _memory.ReadInt(relatives + ordinal * 4);
+
+                Exports[name] = address;
+            }
+
+            return Exports.All(e => e.Value != IntPtr.Zero);
         }
 
         public void Inject(InjectionConfig cfg)
         {
-            if (!ExportsLoaded)
-                throw new ApplicationException("The required mono functions have not been loaded");
+            _config = cfg;
 
             using (_memory = new Memory(ProcessHandle))
             {
+                if (!GetExports(cfg.Target.MonoModuleAddress, cfg.Target.Process.Is64Bit()))
+                    throw new ApplicationException("Unable to obtain the mono function addresses");
+
                 _rootDomain = GetRootDomain();
 
                 Utils.EnsureNotZero(_rootDomain, "GetRootDomain()");
@@ -173,79 +190,76 @@ namespace SharpMonoInjector.Injection
             IntPtr alloc = _memory.AllocateAndWrite(code);
 
             return GetThreadReturnValue(
-                UnsafeNativeMethods.CreateRemoteThread(
+                Native.CreateRemoteThread(
                     ProcessHandle, IntPtr.Zero, 0, alloc, IntPtr.Zero, 0, out _));
         }
 
-#if _x64
-
         private byte[] Assemble(IntPtr address, IntPtr[] args)
         {
             Assembler asm = new Assembler();
 
-            asm.SubRsp(40);
-
-            if (_attach)
+            if (_config.Target.Process.Is64Bit())
             {
-                asm.MovRax(Exports["mono_thread_attach"]);
-                asm.MovRcx(_rootDomain);
-                asm.CallRax();
-            }
+                asm.SubRsp(40);
 
-            asm.MovRax(address);
-
-            for (int i = 0; i < args.Length; i++)
-            {
-                switch (i)
+                if (_attach)
                 {
-                    case 0: asm.MovRcx(args[i]);
-                        break;
-                    case 1: asm.MovRdx(args[i]);
-                        break;
-                    case 2: asm.MovR8(args[i]);
-                        break;
-                    case 3: asm.MovR9(args[i]);
-                        break;
+                    asm.MovRax(Exports["mono_thread_attach"]);
+                    asm.MovRcx(_rootDomain);
+                    asm.CallRax();
                 }
+
+                asm.MovRax(address);
+
+                for (int i = 0; i < args.Length; i++)
+                {
+                    switch (i)
+                    {
+                        case 0:
+                            asm.MovRcx(args[i]);
+                            break;
+                        case 1:
+                            asm.MovRdx(args[i]);
+                            break;
+                        case 2:
+                            asm.MovR8(args[i]);
+                            break;
+                        case 3:
+                            asm.MovR9(args[i]);
+                            break;
+                    }
+                }
+
+                asm.CallRax();
+                asm.AddRsp(40);
             }
-
-            asm.CallRax();
-            asm.AddRsp(40);
-            asm.Return();
-
-            return asm.ToByteArray();
-        }
-
-#else
-
-        private byte[] Assemble(IntPtr address, IntPtr[] args)
-        {
-            Assembler asm = new Assembler();
-
-            if (_attach)
+            else
             {
-                asm.Push(_rootDomain);
-                asm.MovEax(Exports["mono_thread_attach"]);
+                if (_attach)
+                {
+                    asm.Push(_rootDomain);
+                    asm.MovEax(Exports["mono_thread_attach"]);
+                    asm.CallEax();
+                    asm.AddEsp(4);
+                }
+
+                for (int i = args.Length - 1; i >= 0; i--)
+                    asm.Push(args[i]);
+
+                asm.MovEax(address);
                 asm.CallEax();
-                asm.AddEsp(4);
+                asm.AddEsp((byte)(args.Length * 4));
             }
 
-            for (int i = args.Length - 1; i >= 0; i--)
-                asm.Push(args[i]);
-
-            asm.MovEax(address);
-            asm.CallEax();
-            asm.AddEsp((byte)(args.Length * 4));
             asm.Return();
 
             return asm.ToByteArray();
         }
 
-#endif
         private IntPtr GetThreadReturnValue(IntPtr hThread)
         {
-            UnsafeNativeMethods.WaitForSingleObject(hThread, -1);
-            UnsafeNativeMethods.GetExitCodeThread(hThread, out IntPtr exitCode);
+            Native.WaitForSingleObject(hThread, -1);
+            Native.GetExitCodeThread(hThread, out IntPtr exitCode);
             return exitCode;
         }
     }

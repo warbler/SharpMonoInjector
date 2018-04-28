@@ -5,6 +5,8 @@ namespace SharpMonoInjector.Injection
 {
     public class InjectionConfig
     {
+        public MonoProcess Target { get; set; }
+
         public byte[] Assembly { get; set; }
 
         public string AssemblyPath { get; set; }
@@ -17,16 +19,11 @@ namespace SharpMonoInjector.Injection
 
         public string Method { get; set; }
 
-#if _x64
         public override string ToString()
         {
-            return $"0x{AssemblyPointer.ToInt64():X16} - {Path.GetFileName(AssemblyPath)}";
+            return Target.Process.Is64Bit() 
+                ? $"0x{AssemblyPointer.ToInt64():X16} - {Path.GetFileName(AssemblyPath)}" 
+                : $"0x{AssemblyPointer.ToInt64():X8} - {Path.GetFileName(AssemblyPath)}";
         }
-#else
-        public override string ToString()
-        {
-            return $"0x{AssemblyPointer.ToInt64():X8} - {Path.GetFileName(AssemblyPath)}";
-        }
-#endif
     }
 }

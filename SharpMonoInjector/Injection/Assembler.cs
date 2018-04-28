@@ -7,8 +7,6 @@ namespace SharpMonoInjector.Injection
     {
         private readonly List<byte> _asm = new List<byte>();
 
-#if _x64
-
         public void MovRax(IntPtr arg)
         {
             _asm.AddRange(new byte[] {0x48, 0xB8});
@@ -56,8 +54,6 @@ namespace SharpMonoInjector.Injection
             _asm.Add(arg);
         }
 
-#else
-
         public void Push(IntPtr arg)
         {
             _asm.Add((int)arg < 128 ? (byte)0x6A : (byte)0x68);
@@ -81,7 +77,6 @@ namespace SharpMonoInjector.Injection
             _asm.Add(arg);
         }
 
-#endif
         public void Return()
         {
             _asm.Add(0xC3);
