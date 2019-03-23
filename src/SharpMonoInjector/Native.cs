@@ -135,9 +135,5 @@ namespace SharpMonoInjector
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern WaitResult WaitForSingleObject(IntPtr hHandle, int dwMilliseconds);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GetExitCodeThread(IntPtr hThread, out IntPtr lpExitCode);
     }
 }

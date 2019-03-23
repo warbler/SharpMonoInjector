@@ -308,7 +308,11 @@ namespace SharpMonoInjector
 
         private IntPtr Execute(IntPtr address, params IntPtr[] args)
         {
-            byte[] code = Assemble(address, args);
+            IntPtr retValPtr = Is64Bit
+                ? _memory.AllocateAndWrite((long)0)
+                : _memory.AllocateAndWrite(0);
+
+            byte[] code = Assemble(address, retValPtr, args);
             IntPtr alloc = _memory.AllocateAndWrite(code);
 
             IntPtr thread = Native.CreateRemoteThread(
@@ -322,23 +326,24 @@ namespace SharpMonoInjector
             if (result == WaitResult.WAIT_FAILED)
                 throw new InjectorException("Failed to wait for a remote thread", new Win32Exception(Marshal.GetLastWin32Error()));
 
-            if (!Native.GetExitCodeThread(thread, out IntPtr exitCode))
-                throw new InjectorException("Failed to get the exit code of a remote thread", new Win32Exception(Marshal.GetLastWin32Error()));
+            IntPtr ret = Is64Bit
+                ? (IntPtr)_memory.ReadLong(retValPtr)
+                : (IntPtr)_memory.ReadInt(retValPtr);
 
-            if ((long)exitCode == 0x00000000C0000005)
+            if ((long)ret == 0x00000000C0000005)
                 throw new InjectorException($"An access violation occurred while executing {Exports.First(e => e.Value == address).Key}()");
 
-            return exitCode;
+            return ret;
         }
 
-        private byte[] Assemble(IntPtr address, IntPtr[] args)
+        private byte[] Assemble(IntPtr functionPtr, IntPtr retValPtr, IntPtr[] args)
         {
             return Is64Bit
-                ? Assemble64(address, args)
-                : Assemble86(address, args);
+                ? Assemble64(functionPtr, retValPtr, args)
+                : Assemble86(functionPtr, retValPtr, args);
         }
 
-        private byte[] Assemble86(IntPtr address, IntPtr[] args)
+        private byte[] Assemble86(IntPtr functionPtr, IntPtr retValPtr, IntPtr[] args)
         {
             Assembler asm = new Assembler();
 
@@ -352,15 +357,16 @@ namespace SharpMonoInjector
             for (int i = args.Length - 1; i >= 0; i--)
                 asm.Push(args[i]);
 
-            asm.MovEax(address);
+            asm.MovEax(functionPtr);
             asm.CallEax();
             asm.AddEsp((byte)(args.Length * 4));
+            asm.MovEaxTo(retValPtr);
             asm.Return();
 
             return asm.ToByteArray();
         }
 
-        private byte[] Assemble64(IntPtr address, IntPtr[] args)
+        private byte[] Assemble64(IntPtr functionPtr, IntPtr retValPtr, IntPtr[] args)
         {
             Assembler asm = new Assembler();
 
@@ -372,7 +378,7 @@ namespace SharpMonoInjector
                 asm.CallRax();
             }
 
-            asm.MovRax(address);
+            asm.MovRax(functionPtr);
 
             for (int i = 0; i < args.Length; i++) {
                 switch (i) {
@@ -393,6 +399,7 @@ namespace SharpMonoInjector
 
             asm.CallRax();
             asm.AddRsp(40);
+            asm.MovRaxTo(retValPtr);
             asm.Return();
 
             return asm.ToByteArray();

@@ -54,6 +54,12 @@ namespace SharpMonoInjector
             _asm.Add(arg);
         }
 
+        public void MovRaxTo(IntPtr dest)
+        {
+            _asm.AddRange(new byte[] { 0x48, 0xA3 });
+            _asm.AddRange(BitConverter.GetBytes((long)dest));
+        }
+
         public void Push(IntPtr arg)
         {
             _asm.Add((int)arg < 128 ? (byte)0x6A : (byte)0x68);
@@ -75,6 +81,12 @@ namespace SharpMonoInjector
         {
             _asm.AddRange(new byte[] {0x83, 0xC4});
             _asm.Add(arg);
+        }
+
+        public void MovEaxTo(IntPtr dest)
+        {
+            _asm.Add(0xA3);
+            _asm.AddRange(BitConverter.GetBytes((int)dest));
         }
 
         public void Return()

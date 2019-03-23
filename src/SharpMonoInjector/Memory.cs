@@ -48,6 +48,11 @@ namespace SharpMonoInjector
             return BitConverter.ToInt32(ReadBytes(address, 4), 0);
         }
 
+        public long ReadLong(IntPtr address)
+        {
+            return BitConverter.ToInt64(ReadBytes(address, 8), 0);
+        }
+
         public byte[] ReadBytes(IntPtr address, int size)
         {
             byte[] bytes = new byte[size];
