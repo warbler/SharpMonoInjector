@@ -4,7 +4,7 @@
     {
         private void OnGUI()
         {
-            UnityEngine.GUI.Label(new UnityEngine.Rect(10, 10, 100, 20), "This is a very useful cheat");
+            UnityEngine.GUI.Label(new UnityEngine.Rect(10, 10, 200, 40), "This is a very useful cheat");
         }
     }
 }
