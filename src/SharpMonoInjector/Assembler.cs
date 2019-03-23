@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace SharpMonoInjector.Injection
+namespace SharpMonoInjector
 {
     public class Assembler
     {

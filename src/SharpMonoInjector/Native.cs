@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace SharpMonoInjector.Injection
+namespace SharpMonoInjector
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct MODULEINFO
@@ -67,13 +67,46 @@ namespace SharpMonoInjector.Injection
         STACK_SIZE_PARAM_IS_A_RESERVATION = 0x00010000
     }
 
+    public enum WaitResult : uint
+    {
+        WAIT_ABANDONED = 0x00000080,
+        WAIT_OBJECT_0 = 0x00000000,
+        WAIT_TIMEOUT = 0x00000102,
+        WAIT_FAILED = 0xFFFFFFFF
+    }
+
+    [Flags]
+    public enum ProcessAccessRights : uint
+    {
+        PROCESS_ALL_ACCESS = 0x1FFFFF,
+        PROCESS_CREATE_PROCESS = 0x0080,
+        PROCESS_CREATE_THREAD = 0x0002,
+        PROCESS_DUP_HANDLE = 0x0040,
+        PROCESS_QUERY_INFORMATION = 0x0400,
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000,
+        PROCESS_SET_INFORMATION = 0x0200,
+        PROCESS_SET_QUOTA = 0x0100,
+        PROCESS_SUSPEND_RESUME = 0x0800,
+        PROCESS_TERMINATE = 0x0001,
+        PROCESS_VM_OPERATION = 0x0008,
+        PROCESS_VM_READ = 0x0010,
+        PROCESS_VM_WRITE = 0x0020,
+        SYNCHRONIZE = 0x00100000
+    }
+
     public static class Native
     {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr OpenProcess(ProcessAccessRights dwDesiredAccess, bool bInheritHandle, int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CloseHandle(IntPtr handle);
+
         [DllImport("kernel32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool IsWow64Process(IntPtr hProcess, out bool wow64Process);
 
-        [DllImport("psapi.dll")]
+        [DllImport("psapi.dll", SetLastError = true)]
         public static extern bool EnumProcessModulesEx(IntPtr hProcess, [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.U4)] [In][Out] IntPtr[] lphModule, int cb, [MarshalAs(UnmanagedType.U4)] out int lpcbNeeded, ModuleFilter dwFilterFlag);
 
         [DllImport("psapi.dll")]
@@ -82,38 +115,28 @@ namespace SharpMonoInjector.Injection
         [DllImport("psapi.dll", SetLastError = true)]
         public static extern bool GetModuleInformation(IntPtr hProcess, IntPtr hModule, out MODULEINFO lpmodinfo, uint cb);
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        public static extern IntPtr LoadLibrary([In] [MarshalAs(UnmanagedType.LPTStr)] string lpFileName);
-
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool FreeLibrary(IntPtr hModule);
+        public static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, int nSize, int lpNumberOfBytesWritten = 0);
 
-        [DllImport("kernel32.dll")]
-        public static extern IntPtr GetProcAddress(IntPtr hModule, [In] [MarshalAs(UnmanagedType.LPStr)] string lpProcName);
-
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, int nSize, out int lpNumberOfBytesWritten);
+        public static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, int nSize, int lpNumberOfBytesRead = 0);
 
-        [DllImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, int nSize, out int lpNumberOfBytesRead);
-
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         public static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, int dwSize, AllocationType flAllocationType, MemoryProtection flProtect);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress, int dwSize, MemoryFreeType dwFreeType);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         public static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, int dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, ThreadCreationFlags dwCreationFlags, out int lpThreadId);
 
-        [DllImport("kernel32.dll")]
-        public static extern int WaitForSingleObject(IntPtr hHandle, int dwMilliseconds);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern WaitResult WaitForSingleObject(IntPtr hHandle, int dwMilliseconds);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool GetExitCodeThread(IntPtr hThread, out IntPtr lpExitCode);
     }
