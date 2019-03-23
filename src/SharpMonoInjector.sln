@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpMonoInjector", "SharpM
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpMonoInjector.Console", "SharpMonoInjector.Console\SharpMonoInjector.Console.csproj", "{E677DE19-10C7-4981-BC7A-F49AE07E3391}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpMonoInjector.Gui", "SharpMonoInjector.Gui\SharpMonoInjector.Gui.csproj", "{AA64466B-D036-47B1-AA77-DB1DAA026313}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{E677DE19-10C7-4981-BC7A-F49AE07E3391}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E677DE19-10C7-4981-BC7A-F49AE07E3391}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E677DE19-10C7-4981-BC7A-F49AE07E3391}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AA64466B-D036-47B1-AA77-DB1DAA026313}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA64466B-D036-47B1-AA77-DB1DAA026313}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA64466B-D036-47B1-AA77-DB1DAA026313}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA64466B-D036-47B1-AA77-DB1DAA026313}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
