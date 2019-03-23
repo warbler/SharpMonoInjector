@@ -121,31 +121,13 @@ namespace SharpMonoInjector
 
         private void ObtainMonoExports()
         {
-            int e_lfanew = _memory.ReadInt(_mono + 0x3C);
-            IntPtr ntHeaders = _mono + e_lfanew;
-            IntPtr optionalHeader = ntHeaders + 0x18;
-            IntPtr dataDirectory = optionalHeader + (Is64Bit ? 0x70 : 0x60);
-            IntPtr exportDirectory = _mono + _memory.ReadInt(dataDirectory);
-            IntPtr names = _mono + _memory.ReadInt(exportDirectory + 0x20);
-            IntPtr ordinals = _mono + _memory.ReadInt(exportDirectory + 0x24);
-            IntPtr functions = _mono + _memory.ReadInt(exportDirectory + 0x1C);
-            int count = _memory.ReadInt(exportDirectory + 0x18);
+            foreach (ExportedFunction ef in ProcessUtils.GetExportedFunctions(_handle, _mono))
+                if (Exports.ContainsKey(ef.Name))
+                    Exports[ef.Name] = ef.Address;
 
-            for (int i = 0; i < count; i++) {
-                int offset = _memory.ReadInt(names + i * 4);
-                string name = _memory.ReadString(_mono + offset, 32, Encoding.ASCII);
-
-                if (!Exports.ContainsKey(name))
-                    continue;
-
-                short ordinal = _memory.ReadShort(ordinals + i * 2);
-                IntPtr address = _mono + _memory.ReadInt(functions + ordinal * 4);
-
-                if (address == IntPtr.Zero)
-                    throw new InjectorException($"Failed to obtain the address of {name}()");
-
-                Exports[name] = address;
-            }
+            foreach (var kvp in Exports)
+                if (kvp.Value == IntPtr.Zero)
+                    throw new InjectorException($"Failed to obtain the address of {kvp.Key}()");
         }
 
         public IntPtr Inject(byte[] rawAssembly, string @namespace, string className, string methodName)

@@ -48,7 +48,12 @@ namespace SharpMonoInjector.Gui.ViewModels
 
             await Task.Run(() =>
             {
+                int cp = Process.GetCurrentProcess().Id;
+
                 foreach (Process p in Process.GetProcesses()) {
+                    if (p.Id == cp)
+                        continue;
+
                     const ProcessAccessRights flags = ProcessAccessRights.PROCESS_QUERY_INFORMATION | ProcessAccessRights.PROCESS_VM_READ;
                     IntPtr handle;
 
